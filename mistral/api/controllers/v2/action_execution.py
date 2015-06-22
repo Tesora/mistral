@@ -23,7 +23,7 @@ import wsmeext.pecan as wsme_pecan
 from mistral.api.controllers import resource
 from mistral.api.controllers.v2 import types
 from mistral.db.v2 import api as db_api
-from mistral.engine import rpc
+from mistral.engine.rpc import rpc
 from mistral import exceptions as exc
 from mistral.utils import rest_utils
 from mistral.workflow import states
