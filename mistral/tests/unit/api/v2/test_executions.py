@@ -19,6 +19,8 @@ import datetime
 import json
 
 import mock
+from oslo_config import cfg
+import oslo_messaging
 import uuid
 from webtest import app as webtest_app
 
@@ -30,6 +32,9 @@ from mistral import exceptions as exc
 from mistral.tests.unit.api import base
 from mistral import utils
 from mistral.workflow import states
+
+# This line is needed for correct initialization of messaging config.
+oslo_messaging.get_transport(cfg.CONF)
 
 
 WF_EX = models.WorkflowExecution(
@@ -117,7 +122,12 @@ MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
 MOCK_ACTION_EXC = mock.MagicMock(side_effect=exc.ActionException())
 
 
+<<<<<<< HEAD
 class TestExecutionsController(base.FunctionalTest):
+=======
+@mock.patch.object(rpc, '_IMPL_CLIENT', mock.Mock())
+class TestExecutionsController(base.APITest):
+>>>>>>> 95e6b34... Integrating new RPC layer with Mistral
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     def test_get(self):
         resp = self.app.get('/v2/executions/123')
