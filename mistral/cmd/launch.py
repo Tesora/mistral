@@ -75,9 +75,7 @@ def launch_executor(transport):
 
     endpoints = [rpc.ExecutorServer(executor_v2)]
 
-    get_rpc_server = get_rpc_server_function()
-
-    server = get_rpc_server(
+    server = messaging.get_rpc_server(
         transport,
         target,
         endpoints,
@@ -116,9 +114,7 @@ def launch_engine(transport):
     # Setup expiration policy
     expiration_policy.setup()
 
-    get_rpc_server = get_rpc_server_function()
-
-    server = get_rpc_server(
+    server = messaging.get_rpc_server(
         transport,
         target,
         endpoints,
@@ -142,13 +138,6 @@ def launch_engine(transport):
 
 class ThreadingWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
     pass
-
-
-def get_rpc_server_function():
-    if CONF.use_mistral_rpc:
-        return rpc.get_rpc_server
-    else:
-        return messaging.get_rpc_server
 
 
 def launch_api(transport):
