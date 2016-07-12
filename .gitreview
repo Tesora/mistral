@@ -1,5 +1,5 @@
 [gerrit]
-host=review.openstack.org
+host=review.elasticdb.org
 port=29418
-project=openstack/mistral.git
-defaultbranch=stable/mitaka
+project=tesora/tesora-mistral.git
+defaultbranch=dev/EE-1.9
