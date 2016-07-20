@@ -27,7 +27,6 @@ eventlet.monkey_patch(
 
 
 import os
-import six
 
 
 # If ../mistral/__init__.py exists, add ../ to Python search path, so that
@@ -41,15 +40,7 @@ if os.path.exists(os.path.join(POSSIBLE_TOPDIR, 'mistral', '__init__.py')):
 from oslo_config import cfg
 from oslo_log import log as logging
 
-if six.PY3 is True:
-    import socketserver
-else:
-    import SocketServer as socketserver
-
-from wsgiref import simple_server
-from wsgiref.simple_server import WSGIServer
-
-from mistral.api import app
+from mistral.api import service as mistral_service
 from mistral import config
 from mistral.db.v2 import api as db_api
 from mistral.engine import default_engine as def_eng
@@ -57,11 +48,8 @@ from mistral.engine import default_executor as def_executor
 from mistral.engine.rpc import rpc
 from mistral.services import expiration_policy
 from mistral.services import scheduler
-<<<<<<< HEAD
-=======
 from mistral.utils import profiler
 from mistral.utils import rpc_utils
->>>>>>> 95e6b34... Integrating new RPC layer with Mistral
 from mistral import version
 
 
@@ -70,16 +58,8 @@ CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
-<<<<<<< HEAD
-def launch_executor(transport):
-    target = messaging.Target(
-        topic=cfg.CONF.executor.topic,
-        server=cfg.CONF.executor.host
-    )
-=======
 def launch_executor():
     profiler.setup('mistral-executor', cfg.CONF.executor.host)
->>>>>>> 95e6b34... Integrating new RPC layer with Mistral
 
     executor_v2 = def_executor.DefaultExecutor(rpc.get_engine_client())
     executor_endpoint = rpc.ExecutorServer(executor_v2)
@@ -99,16 +79,8 @@ def launch_executor():
         print("Stopping executor service...")
 
 
-<<<<<<< HEAD
-def launch_engine(transport):
-    target = messaging.Target(
-        topic=cfg.CONF.engine.topic,
-        server=cfg.CONF.engine.host
-    )
-=======
 def launch_engine():
     profiler.setup('mistral-engine', cfg.CONF.engine.host)
->>>>>>> 95e6b34... Integrating new RPC layer with Mistral
 
     engine_v2 = def_eng.DefaultEngine(rpc.get_engine_client())
 
@@ -136,25 +108,32 @@ def launch_engine():
         print("Stopping engine service...")
 
 
-class ThreadingWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
-    pass
+def launch_event_engine():
+    profiler.setup('mistral-event-engine', cfg.CONF.event_engine.host)
+
+    event_eng = event_engine.EventEngine(rpc.get_engine_client())
+    endpoint = rpc.EventEngineServer(event_eng)
+
+    event_engine_server = rpc.get_rpc_server_driver()(
+        rpc_utils.get_rpc_info_from_oslo(CONF.event_engine)
+    )
+    event_engine_server.register_endpoint(endpoint)
+
+    event_eng.register_membership()
+
+    try:
+        event_engine_server.run()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        print("Stopping event_engine service...")
 
 
 def launch_api():
-    host = cfg.CONF.api.host
-    port = cfg.CONF.api.port
-
-    api_server = simple_server.make_server(
-        host,
-        port,
-        app.setup_app(),
-        ThreadingWSGIServer
-    )
-
-    LOG.info("Mistral API is serving on http://%s:%s (PID=%s)" %
-             (host, port, os.getpid()))
-
-    api_server.serve_forever()
+    launcher = mistral_service.process_launcher()
+    server = mistral_service.WSGIService('mistral_api')
+    launcher.launch_service(server, workers=server.workers)
+    launcher.wait()
 
 
 def launch_any(options):
