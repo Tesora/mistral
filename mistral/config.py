@@ -38,9 +38,24 @@ launch_opt = cfg.ListOpt(
 api_opts = [
     cfg.StrOpt('host', default='0.0.0.0', help='Mistral API server host'),
     cfg.PortOpt('port', default=8989, help='Mistral API server port'),
-    cfg.BoolOpt('allow_action_execution_deletion', default=False,
-                help='Enables the ability to delete action_execution which '
-                     'has no relationship with workflows.'),
+    cfg.BoolOpt(
+        'allow_action_execution_deletion',
+        default=False,
+        help='Enables the ability to delete action_execution which '
+             'has no relationship with workflows.'
+    ),
+    cfg.BoolOpt(
+        'enable_ssl_api',
+        default=False,
+        help='Enable the integrated stand-alone API to service requests'
+             'via HTTPS instead of HTTP.'
+    ),
+    cfg.IntOpt(
+        'api_workers',
+        help='Number of workers for Mistral API service '
+             'default is equal to the number of CPUs available if that can '
+             'be determined, else a default worker count of 1 is returned.'
+    )
 ]
 
 pecan_opts = [
