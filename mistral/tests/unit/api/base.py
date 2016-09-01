@@ -24,7 +24,7 @@ from mistral.services import periodic
 from mistral.tests.unit import base
 from mistral.tests.unit.mstrlfixtures import policy_fixtures
 
-# Disable authentication for functional tests.
+# Disable authentication for API tests.
 cfg.CONF.set_default('auth_enable', False, group='pecan')
 
 
@@ -57,7 +57,9 @@ class APITest(base.DbTestCase):
         self.addCleanup(periodic.stop_all_periodic_tasks)
 
         # Make sure the api get the correct context.
-        self.patch_ctx = mock.patch('mistral.context.context_from_headers')
+        self.patch_ctx = mock.patch(
+            'mistral.context.context_from_headers_and_env'
+        )
         self.mock_ctx = self.patch_ctx.start()
         self.mock_ctx.return_value = self.ctx
         self.addCleanup(self.patch_ctx.stop)

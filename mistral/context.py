@@ -15,15 +15,21 @@
 
 import eventlet
 from keystoneclient.v3 import client as keystone_client
+import logging
 from oslo_config import cfg
 import oslo_messaging as messaging
 from oslo_serialization import jsonutils
 from osprofiler import profiler
 import pecan
 from pecan import hooks
+import pprint
+import requests
 
 from mistral import exceptions as exc
 from mistral import utils
+
+
+LOG = logging.getLogger(__name__)
 
 
 CONF = cfg.CONF
@@ -79,6 +85,9 @@ class MistralContext(BaseContext):
         "roles",
         "is_admin",
         "is_trust_scoped",
+        "redelivered",
+        "expires_at",
+        "trust_id",
     ])
 
     def __repr__(self):
@@ -120,19 +129,55 @@ def spawn(thread_description, func, *args, **kwargs):
                    None, func, *args, **kwargs)
 
 
-def context_from_headers(headers):
+def context_from_headers_and_env(headers, env):
+    params = _extract_auth_params_from_headers(headers)
+    auth_cacert = params['auth_cacert']
+    auth_token = params['auth_token']
+    auth_uri = params['auth_uri']
+    project_id = params['project_id']
+    user_id = params['user_id']
+    user_name = params['user_name']
+
     return MistralContext(
-        auth_uri=CONF.keystone_authtoken.auth_uri,
-        auth_cacert=CONF.keystone_authtoken.cafile,
-        user_id=headers.get('X-User-Id'),
-        project_id=headers.get('X-Project-Id'),
-        auth_token=headers.get('X-Auth-Token'),
+        auth_uri=auth_uri,
+        auth_cacert=auth_cacert,
+        user_id=user_id,
+        project_id=project_id,
+        auth_token=auth_token,
         service_catalog=headers.get('X-Service-Catalog'),
-        user_name=headers.get('X-User-Name'),
+        user_name=user_name,
         project_name=headers.get('X-Project-Name'),
         roles=headers.get('X-Roles', "").split(","),
         is_trust_scoped=False,
+        expires_at=env.get('keystone.token_info')['token']['expires_at'],
     )
+
+
+def _extract_auth_params_from_headers(headers):
+    if headers.get("X-Target-Auth-Uri"):
+        params = {
+            # TODO(akovi): Target cert not handled yet
+            'auth_cacert': None,
+            'auth_token': headers.get('X-Target-Auth-Token'),
+            'auth_uri': headers.get('X-Target-Auth-Uri'),
+            'project_id': headers.get('X-Target-Project-Id'),
+            'user_id': headers.get('X-Target-User-Id'),
+            'user_name': headers.get('X-Target-User-Name'),
+        }
+        if not params['auth_token']:
+            raise (exc.MistralException(
+                'Target auth URI (X-Target-Auth-Uri) target auth token '
+                '(X-Target-Auth-Token) must be present'))
+    else:
+        params = {
+            'auth_cacert': CONF.keystone_authtoken.cafile,
+            'auth_token': headers.get('X-Auth-Token'),
+            'auth_uri': CONF.keystone_authtoken.auth_uri,
+            'project_id': headers.get('X-Project-Id'),
+            'user_id': headers.get('X-User-Id'),
+            'user_name': headers.get('X-User-Name'),
+        }
+    return params
 
 
 def context_from_config():
@@ -209,24 +254,16 @@ class AuthHook(hooks.PecanHook):
         if state.request.path in ALLOWED_WITHOUT_AUTH:
             return
 
-        if CONF.pecan.auth_enable:
-            # Note(nmakhotkin): Since we have deferred authentication,
-            # need to check for auth manually (check for corresponding
-            # headers according to keystonemiddleware docs.
-            identity_status = state.request.headers.get('X-Identity-Status')
-            service_identity_status = state.request.headers.get(
-                'X-Service-Identity-Status'
-            )
+        if not CONF.pecan.auth_enable:
+            return
 
-            if (identity_status == 'Confirmed'
-                    or service_identity_status == 'Confirmed'):
-                return
-
-            if state.request.headers.get('X-Auth-Token'):
-                msg = ("Auth token is invalid: %s"
-                       % state.request.headers['X-Auth-Token'])
-            else:
-                msg = 'Authentication required'
+        try:
+            if CONF.auth_type == 'keystone':
+                authenticate_with_keystone(state.request)
+            elif CONF.auth_type == 'keycloak-oidc':
+                authenticate_with_keycloak(state.request)
+        except Exception as e:
+            msg = "Failed to validate access token: %s" % str(e)
 
             pecan.abort(
                 status_code=401,
@@ -235,9 +272,60 @@ class AuthHook(hooks.PecanHook):
             )
 
 
+def authenticate_with_keystone(req):
+    # Note(nmakhotkin): Since we have deferred authentication,
+    # need to check for auth manually (check for corresponding
+    # headers according to keystonemiddleware docs.
+    identity_status = req.headers.get('X-Identity-Status')
+    service_identity_status = req.headers.get('X-Service-Identity-Status')
+
+    if (identity_status == 'Confirmed' or
+            service_identity_status == 'Confirmed'):
+        return
+
+    if req.headers.get('X-Auth-Token'):
+        msg = 'Auth token is invalid: %s' % req.headers['X-Auth-Token']
+    else:
+        msg = 'Authentication required'
+
+    raise exc.UnauthorizedException(msg)
+
+
+def authenticate_with_keycloak(req):
+    realm_name = req.headers.get('X-Project-Id')
+
+    # NOTE(rakhmerov): There's a special endpoint for introspecting
+    # access tokens described in OpenID Connect specification but it's
+    # available in KeyCloak starting only with version 1.8.Final so we have
+    # to use user info endpoint which also takes exactly one parameter
+    # (access token) and replies with error if token is invalid.
+    user_info_endpoint = (
+        "%s/realms/%s/protocol/openid-connect/userinfo" %
+        (CONF.keycloak_oidc.auth_url, realm_name)
+    )
+
+    access_token = req.headers.get('X-Auth-Token')
+
+    resp = requests.get(
+        user_info_endpoint,
+        headers={"Authorization": "Bearer %s" % access_token},
+        verify=not CONF.keycloak_oidc.insecure
+    )
+
+    resp.raise_for_status()
+
+    LOG.debug(
+        "HTTP response from OIDC provider: %s" %
+        pprint.pformat(resp.json())
+    )
+
+
 class ContextHook(hooks.PecanHook):
     def before(self, state):
-        set_ctx(context_from_headers(state.request.headers))
+        set_ctx(context_from_headers_and_env(
+            state.request.headers,
+            state.request.environ
+        ))
 
     def after(self, state):
         set_ctx(None)
