@@ -34,6 +34,7 @@ from mistral.workbook import parser as spec_parser
 from mistral.workflow import base as wf_base
 from mistral.workflow import commands
 from mistral.workflow import data_flow
+from mistral.workflow import lookup_utils
 from mistral.workflow import states
 from mistral.workflow import utils as wf_utils
 
@@ -158,6 +159,11 @@ class Workflow(object):
 
         assert self.wf_ex
 
+        # Since some lookup utils functions may use cache for completed tasks
+        # we need to clean caches to make sure that stale objects can't be
+        # retrieved.
+        lookup_utils.clean_caches()
+
         wf_service.update_workflow_execution_env(self.wf_ex, env)
 
         self.set_state(states.RUNNING, recursive=True)
@@ -228,6 +234,11 @@ class Workflow(object):
         data_flow.add_environment_to_context(self.wf_ex)
         data_flow.add_workflow_variables_to_context(self.wf_ex, self.wf_spec)
 
+        spec_parser.cache_workflow_spec_by_execution_id(
+            self.wf_ex.id,
+            self.wf_spec
+        )
+
     @profiler.trace('workflow-set-state')
     def set_state(self, state, state_info=None, recursive=False):
         assert self.wf_ex
@@ -275,8 +286,16 @@ class Workflow(object):
 
     @profiler.trace('workflow-check-and-complete')
     def check_and_complete(self):
+        """Completes the workflow if it needs to be completed.
+
+        The method simply checks if there are any tasks that are not
+        in a terminal state. If there aren't any then it performs all
+        necessary logic to finalize the workflow (calculate output etc.).
+        :return: Number of incomplete tasks.
+        """
+
         if states.is_paused_or_completed(self.wf_ex.state):
-            return
+            return 0
 
         # Workflow is not completed if there are any incomplete task
         # executions.
@@ -285,7 +304,7 @@ class Workflow(object):
         )
 
         if incomplete_tasks_count > 0:
-            return
+            return incomplete_tasks_count
 
         wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
 
@@ -297,6 +316,8 @@ class Workflow(object):
             self._succeed_workflow(wf_ctrl.evaluate_workflow_final_context())
         else:
             self._fail_workflow(_build_fail_info_message(wf_ctrl, self.wf_ex))
+
+        return 0
 
     def _succeed_workflow(self, final_context, msg=None):
         self.wf_ex.output = data_flow.evaluate_workflow_output(
@@ -424,7 +445,7 @@ def _build_fail_info_message(wf_ctrl, wf_ex):
     failed_tasks = sorted(
         filter(
             lambda t: not wf_ctrl.is_error_handled_for(t),
-            wf_utils.find_error_task_executions(wf_ex)
+            lookup_utils.find_error_task_executions(wf_ex.id)
         ),
         key=lambda t: t.name
     )
@@ -463,7 +484,7 @@ def _build_fail_info_message(wf_ctrl, wf_ex):
 def _build_cancel_info_message(wf_ctrl, wf_ex):
     # Try to find where cancel is exactly.
     cancelled_tasks = sorted(
-        wf_utils.find_cancelled_task_executions(wf_ex),
+        lookup_utils.find_cancelled_task_executions(wf_ex.id),
         key=lambda t: t.name
     )
 

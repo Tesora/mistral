@@ -13,13 +13,12 @@
 #    limitations under the License.
 
 
+from oslo_serialization import jsonutils
+from stevedore import extension
 import yaql
 
 from mistral.db.v2 import api as db_api
 from mistral import utils
-from mistral.workflow import utils as wf_utils
-from oslo_serialization import jsonutils
-from stevedore import extension
 
 
 ROOT_CONTEXT = None
@@ -73,7 +72,15 @@ def env_(context):
 
 
 def execution_(context):
-    return context['__execution']
+    wf_ex = db_api.get_workflow_execution(context['__execution']['id'])
+
+    return {
+        'id': wf_ex.id,
+        'name': wf_ex.name,
+        'spec': wf_ex.spec,
+        'input': wf_ex.input,
+        'params': wf_ex.params
+    }
 
 
 def json_pp_(data):
@@ -87,8 +94,6 @@ def task_(context, task_name):
     # Importing data_flow in order to break cycle dependency between modules.
     from mistral.workflow import data_flow
 
-    wf_ex = db_api.get_workflow_execution(context['__execution']['id'])
-
     # This section may not exist in a context if it's calculated not in
     # task scope.
     cur_task = context['__task_execution']
@@ -96,7 +101,10 @@ def task_(context, task_name):
     if cur_task and cur_task['name'] == task_name:
         task_ex = db_api.get_task_execution(cur_task['id'])
     else:
-        task_execs = wf_utils.find_task_executions_by_name(wf_ex, task_name)
+        task_execs = db_api.get_task_executions(
+            workflow_execution_id=context['__execution']['id'],
+            name=task_name
+        )
 
         # TODO(rakhmerov): Account for multiple executions (i.e. in case of
         # cycles).
