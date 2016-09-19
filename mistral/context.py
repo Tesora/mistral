@@ -13,7 +13,6 @@
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
 
-import eventlet
 from keystoneclient.v3 import client as keystone_client
 import logging
 from oslo_config import cfg
@@ -22,9 +21,8 @@ from oslo_serialization import jsonutils
 from osprofiler import profiler
 import pecan
 from pecan import hooks
-import pprint
-import requests
 
+from mistral import auth
 from mistral import exceptions as exc
 from mistral import utils
 
@@ -107,26 +105,6 @@ def ctx():
 
 def set_ctx(new_ctx):
     utils.set_thread_local(_CTX_THREAD_LOCAL_NAME, new_ctx)
-
-
-def _wrapper(context, thread_desc, thread_group, func, *args, **kwargs):
-    try:
-        set_ctx(context)
-        func(*args, **kwargs)
-    except Exception as e:
-        if thread_group and not thread_group.exc:
-            thread_group.exc = e
-            thread_group.failed_thread = thread_desc
-    finally:
-        if thread_group:
-            thread_group._on_thread_exit()
-
-        set_ctx(None)
-
-
-def spawn(thread_description, func, *args, **kwargs):
-    eventlet.spawn(_wrapper, ctx().clone(), thread_description,
-                   None, func, *args, **kwargs)
 
 
 def context_from_headers_and_env(headers, env):
@@ -260,10 +238,8 @@ class AuthHook(hooks.PecanHook):
             return
 
         try:
-            if CONF.auth_type == 'keystone':
-                authenticate_with_keystone(state.request)
-            elif CONF.auth_type == 'keycloak-oidc':
-                authenticate_with_keycloak(state.request)
+            auth_handler = auth.get_auth_handler()
+            auth_handler.authenticate(state.request)
         except Exception as e:
             msg = "Failed to validate access token: %s" % str(e)
 
@@ -272,54 +248,6 @@ class AuthHook(hooks.PecanHook):
                 detail=msg,
                 headers={'Server-Error-Message': msg}
             )
-
-
-def authenticate_with_keystone(req):
-    # Note(nmakhotkin): Since we have deferred authentication,
-    # need to check for auth manually (check for corresponding
-    # headers according to keystonemiddleware docs.
-    identity_status = req.headers.get('X-Identity-Status')
-    service_identity_status = req.headers.get('X-Service-Identity-Status')
-
-    if (identity_status == 'Confirmed' or
-            service_identity_status == 'Confirmed'):
-        return
-
-    if req.headers.get('X-Auth-Token'):
-        msg = 'Auth token is invalid: %s' % req.headers['X-Auth-Token']
-    else:
-        msg = 'Authentication required'
-
-    raise exc.UnauthorizedException(msg)
-
-
-def authenticate_with_keycloak(req):
-    realm_name = req.headers.get('X-Project-Id')
-
-    # NOTE(rakhmerov): There's a special endpoint for introspecting
-    # access tokens described in OpenID Connect specification but it's
-    # available in KeyCloak starting only with version 1.8.Final so we have
-    # to use user info endpoint which also takes exactly one parameter
-    # (access token) and replies with error if token is invalid.
-    user_info_endpoint = (
-        "%s/realms/%s/protocol/openid-connect/userinfo" %
-        (CONF.keycloak_oidc.auth_url, realm_name)
-    )
-
-    access_token = req.headers.get('X-Auth-Token')
-
-    resp = requests.get(
-        user_info_endpoint,
-        headers={"Authorization": "Bearer %s" % access_token},
-        verify=not CONF.keycloak_oidc.insecure
-    )
-
-    resp.raise_for_status()
-
-    LOG.debug(
-        "HTTP response from OIDC provider: %s" %
-        pprint.pformat(resp.json())
-    )
 
 
 class ContextHook(hooks.PecanHook):
