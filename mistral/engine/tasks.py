@@ -314,7 +314,7 @@ class RegularTask(Task):
         wf_ctrl = wf_base.get_controller(self.wf_ex, self.wf_spec)
 
         self.ctx = wf_ctrl.get_task_inbound_context(self.task_spec)
-        self.task_ex.in_context = self.ctx
+        utils.update_dict(self.task_ex.in_context, self.ctx)
 
     def _reset_actions(self):
         """Resets task state.
@@ -362,7 +362,16 @@ class RegularTask(Task):
     def _get_action_input(self, ctx=None):
         ctx = ctx or self.ctx
 
-        input_dict = expr.evaluate_recursively(self.task_spec.get_input(), ctx)
+        ctx_view = data_flow.ContextView(
+            ctx,
+            self.wf_ex.context,
+            self.wf_ex.input
+        )
+
+        input_dict = expr.evaluate_recursively(
+            self.task_spec.get_input(),
+            ctx_view
+        )
 
         return utils.merge_dicts(
             input_dict,
@@ -478,9 +487,15 @@ class WithItemsTask(RegularTask):
         :return: the list of tuples containing indexes
         and the corresponding input dict.
         """
+        ctx_view = data_flow.ContextView(
+            self.ctx,
+            self.wf_ex.context,
+            self.wf_ex.input
+        )
+
         with_items_inputs = expr.evaluate_recursively(
             self.task_spec.get_with_items(),
-            self.ctx
+            ctx_view
         )
 
         with_items.validate_input(with_items_inputs)
