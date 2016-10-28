@@ -812,7 +812,7 @@ class JoinEngineTest(base.EngineTestCase):
 
         self._assert_multiple_items(task_execs, 4, state=states.SUCCESS)
 
-    def delete_join_completion_check_on_stop(self):
+    def test_delete_join_completion_check_on_stop(self):
         wf_text = """---
         version: '2.0'
 
@@ -867,7 +867,7 @@ class JoinEngineTest(base.EngineTestCase):
             len(db_api.get_delayed_calls(target_method_name=mtd_name)) == 0
         )
 
-    def delete_join_completion_check_on_execution_delete(self):
+    def test_delete_join_completion_check_on_execution_delete(self):
         wf_text = """---
         version: '2.0'
 
@@ -921,3 +921,98 @@ class JoinEngineTest(base.EngineTestCase):
             lambda:
             len(db_api.get_delayed_calls(target_method_name=mtd_name)) == 0
         )
+
+    def test_join_with_deep_dependencies_tree(self):
+        wf_text = """---
+        version: '2.0'
+
+        wf:
+          tasks:
+            task_a_1:
+              on-success:
+                - task_with_join
+
+            task_b_1:
+              action: std.fail
+              on-success:
+                - task_b_2
+
+            task_b_2:
+              on-success:
+                - task_b_3
+
+            task_b_3:
+              on-success:
+                - task_with_join
+
+            task_with_join:
+              join: all
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_execs = wf_ex.task_executions
+
+        self.assertEqual(3, len(task_execs))
+        self._assert_single_item(
+            task_execs,
+            name='task_a_1',
+            state=states.SUCCESS
+        )
+        self._assert_single_item(
+            task_execs,
+            name='task_b_1',
+            state=states.ERROR
+        )
+        self._assert_single_item(
+            task_execs,
+            name='task_with_join',
+            state=states.ERROR
+        )
+
+    def test_no_workflow_error_after_inbound_error(self):
+        wf_text = """---
+        version: "2.0"
+
+        wf:
+          output:
+            continue_flag: <% $.get(continue_flag) %>
+
+          task-defaults:
+            on-error:
+              - change_continue_flag
+
+          tasks:
+            task_a:
+              action: std.fail
+              on-success:
+                - task_c: <% $.get(continue_flag) = null %>
+                - task_a_process
+
+            task_a_process:
+              action: std.noop
+
+            task_b:
+              on-success:
+                - task_c: <% $.get(continue_flag) = null %>
+
+            task_c:
+              join: all
+
+            change_continue_flag:
+              publish:
+                continue_flag: false
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_success(wf_ex.id)
