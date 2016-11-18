@@ -13,7 +13,9 @@
 #    limitations under the License.
 
 import datetime as dt
+import mock
 from oslo_config import cfg
+import requests
 
 from mistral.db.v2 import api as db_api
 from mistral.services import scheduler
@@ -28,6 +30,12 @@ cfg.CONF.set_default('auth_enable', False, group='pecan')
 
 
 class TaskDefaultsDirectWorkflowEngineTest(base.EngineTestCase):
+
+    @mock.patch.object(
+        requests,
+        'request',
+        mock.MagicMock(side_effect=Exception())
+    )
     def test_task_defaults_on_error(self):
         wf_text = """---
         version: '2.0'
@@ -60,10 +68,11 @@ class TaskDefaultsDirectWorkflowEngineTest(base.EngineTestCase):
 
         self.await_workflow_success(wf_ex.id)
 
-        # Note: We need to reread execution to access related tasks.
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            # Note: We need to reread execution to access related tasks.
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        tasks = wf_ex.task_executions
+            tasks = wf_ex.task_executions
 
         task1 = self._assert_single_item(tasks, name='task1')
         task3 = self._assert_single_item(tasks, name='task3')
@@ -109,10 +118,11 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        # Note: We need to reread execution to access related tasks.
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            # Note: We need to reread execution to access related tasks.
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        tasks = wf_ex.task_executions
+            tasks = wf_ex.task_executions
 
         self.assertEqual(1, len(tasks))
 
@@ -152,16 +162,17 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        # Note: We need to reread execution to access related tasks.
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            # Note: We need to reread execution to access related tasks.
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        tasks = wf_ex.task_executions
+            tasks = wf_ex.task_executions
 
         self.assertEqual(1, len(tasks))
-
         self._assert_single_item(tasks, name='task1', state=states.ERROR)
 
         task_ex = db_api.get_task_execution(tasks[0].id)
+
         self.assertIn("Task timed out", task_ex.state_info)
 
     def test_task_defaults_wait_policies(self):
@@ -195,13 +206,13 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
             2
         )
 
-        # Note: We need to reread execution to access related tasks.
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            # Note: We need to reread execution to access related tasks.
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        tasks = wf_ex.task_executions
+            tasks = wf_ex.task_executions
 
         self.assertEqual(1, len(tasks))
-
         self._assert_single_item(tasks, name='task1', state=states.SUCCESS)
 
     def test_task_defaults_requires(self):
@@ -234,10 +245,11 @@ class TaskDefaultsReverseWorkflowEngineTest(base.EngineTestCase):
 
         self.await_workflow_success(wf_ex.id)
 
-        # Note: We need to reread execution to access related tasks.
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            # Note: We need to reread execution to access related tasks.
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        tasks = wf_ex.task_executions
+            tasks = wf_ex.task_executions
 
         self.assertEqual(3, len(tasks))
 

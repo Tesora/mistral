@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-#
 # Copyright 2015 - Mirantis, Inc.
+# Copyright 2016 - Brocade Communications Systems, Inc.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -43,9 +42,10 @@ def _load_deferred_output_field(action_ex):
 
 
 def _get_action_execution(id):
-    action_ex = db_api.get_action_execution(id)
+    with db_api.transaction():
+        action_ex = db_api.get_action_execution(id)
 
-    return _get_action_execution_resource(action_ex)
+        return _get_action_execution_resource(action_ex)
 
 
 def _get_action_execution_resource(action_ex):
@@ -111,7 +111,7 @@ class ActionExecutionsController(rest.RestController):
         """Return the specified action_execution."""
         acl.enforce('action_executions:get', context.ctx())
 
-        LOG.info("Fetch action_execution [id=%s]" % id)
+        LOG.info("Fetch action_execution [id=%s]", id)
 
         return _get_action_execution(id)
 
@@ -122,7 +122,7 @@ class ActionExecutionsController(rest.RestController):
         """Create new action_execution."""
         acl.enforce('action_executions:create', context.ctx())
 
-        LOG.info("Create action_execution [action_execution=%s]" % action_ex)
+        LOG.info("Create action_execution [action_execution=%s]", action_ex)
 
         name = action_ex.name
         description = action_ex.description or None
@@ -166,16 +166,21 @@ class ActionExecutionsController(rest.RestController):
             if not output:
                 output = 'Unknown error'
             result = wf_utils.Result(error=output)
+        elif action_ex.state == states.CANCELLED:
+            result = wf_utils.Result(cancel=True)
         else:
             raise exc.InvalidResultException(
-                "Error. Expected on of %s, actual: %s" %
-                ([states.SUCCESS, states.ERROR], action_ex.state)
+                "Error. Expected one of %s, actual: %s" % (
+                    [states.SUCCESS, states.ERROR, states.CANCELLED],
+                    action_ex.state
+                )
             )
 
         values = rpc.get_engine_client().on_action_complete(id, result)
 
         return resources.ActionExecution.from_dict(values)
 
+    @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(resources.ActionExecutions, types.uuid, int,
                          types.uniquelist, types.list, types.uniquelist,
                          wtypes.text, wtypes.text, wtypes.text,
@@ -268,26 +273,30 @@ class ActionExecutionsController(rest.RestController):
         """Delete the specified action_execution."""
         acl.enforce('action_executions:delete', context.ctx())
 
-        LOG.info("Delete action_execution [id=%s]" % id)
+        LOG.info("Delete action_execution [id=%s]", id)
 
         if not cfg.CONF.api.allow_action_execution_deletion:
             raise exc.NotAllowedException("Action execution deletion is not "
                                           "allowed.")
 
-        action_ex = db_api.get_action_execution(id)
+        with db_api.transaction():
+            action_ex = db_api.get_action_execution(id)
 
-        if action_ex.task_execution_id:
-            raise exc.NotAllowedException("Only ad-hoc action execution can "
-                                          "be deleted.")
+            if action_ex.task_execution_id:
+                raise exc.NotAllowedException(
+                    "Only ad-hoc action execution can be deleted."
+                )
 
-        if not states.is_completed(action_ex.state):
-            raise exc.NotAllowedException("Only completed action execution "
-                                          "can be deleted.")
+            if not states.is_completed(action_ex.state):
+                raise exc.NotAllowedException(
+                    "Only completed action execution can be deleted."
+                )
 
-        return db_api.delete_action_execution(id)
+            return db_api.delete_action_execution(id)
 
 
 class TasksActionExecutionController(rest.RestController):
+    @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(resources.ActionExecutions, types.uuid, types.uuid,
                          int, types.uniquelist, types.list, types.uniquelist,
                          wtypes.text, types.uniquelist, wtypes.text,
@@ -380,6 +389,6 @@ class TasksActionExecutionController(rest.RestController):
         """Return the specified action_execution."""
         acl.enforce('action_executions:get', context.ctx())
 
-        LOG.info("Fetch action_execution [id=%s]" % action_ex_id)
+        LOG.info("Fetch action_execution [id=%s]", action_ex_id)
 
         return _get_action_execution(action_ex_id)
