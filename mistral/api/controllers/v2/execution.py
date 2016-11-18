@@ -67,7 +67,7 @@ class ExecutionsController(rest.RestController):
         """Return the specified Execution."""
         acl.enforce("executions:get", context.ctx())
 
-        LOG.info("Fetch execution [id=%s]" % id)
+        LOG.info("Fetch execution [id=%s]", id)
 
         with db_api.transaction():
             wf_ex = db_api.get_workflow_execution(id)
@@ -95,49 +95,49 @@ class ExecutionsController(rest.RestController):
 
         LOG.info('Update execution [id=%s, execution=%s]' % (id, wf_ex))
 
-        db_api.ensure_workflow_execution_exists(id)
+        with db_api.transaction():
+            db_api.ensure_workflow_execution_exists(id)
 
-        delta = {}
+            delta = {}
 
-        if wf_ex.state:
-            delta['state'] = wf_ex.state
+            if wf_ex.state:
+                delta['state'] = wf_ex.state
 
-        if wf_ex.description:
-            delta['description'] = wf_ex.description
+            if wf_ex.description:
+                delta['description'] = wf_ex.description
 
-        if wf_ex.params and wf_ex.params.get('env'):
-            delta['env'] = wf_ex.params.get('env')
+            if wf_ex.params and wf_ex.params.get('env'):
+                delta['env'] = wf_ex.params.get('env')
 
-        # Currently we can change only state, description, or env.
-        if len(delta.values()) <= 0:
-            raise exc.InputException(
-                'The property state, description, or env '
-                'is not provided for update.'
-            )
+            # Currently we can change only state, description, or env.
+            if len(delta.values()) <= 0:
+                raise exc.InputException(
+                    'The property state, description, or env '
+                    'is not provided for update.'
+                )
 
-        # Description cannot be updated together with state.
-        if delta.get('description') and delta.get('state'):
-            raise exc.InputException(
-                'The property description must be updated '
-                'separately from state.'
-            )
+            # Description cannot be updated together with state.
+            if delta.get('description') and delta.get('state'):
+                raise exc.InputException(
+                    'The property description must be updated '
+                    'separately from state.'
+                )
 
-        # If state change, environment cannot be updated if not RUNNING.
-        if (delta.get('env') and
-                delta.get('state') and delta['state'] != states.RUNNING):
-            raise exc.InputException(
-                'The property env can only be updated when workflow '
-                'execution is not running or on resume from pause.'
-            )
+            # If state change, environment cannot be updated if not RUNNING.
+            if (delta.get('env') and
+                    delta.get('state') and delta['state'] != states.RUNNING):
+                raise exc.InputException(
+                    'The property env can only be updated when workflow '
+                    'execution is not running or on resume from pause.'
+                )
 
-        if delta.get('description'):
-            wf_ex = db_api.update_workflow_execution(
-                id,
-                {'description': delta['description']}
-            )
+            if delta.get('description'):
+                wf_ex = db_api.update_workflow_execution(
+                    id,
+                    {'description': delta['description']}
+                )
 
-        if not delta.get('state') and delta.get('env'):
-            with db_api.transaction():
+            if not delta.get('state') and delta.get('env'):
                 wf_ex = db_api.get_workflow_execution(id)
                 wf_ex = wf_service.update_workflow_execution_env(
                     wf_ex,
@@ -191,7 +191,7 @@ class ExecutionsController(rest.RestController):
         """
         acl.enforce('executions:create', context.ctx())
 
-        LOG.info('Create execution [execution=%s]' % wf_ex)
+        LOG.info("Create execution [execution=%s]", wf_ex)
 
         engine = rpc.get_engine_client()
         exec_dict = wf_ex.to_dict()
@@ -218,10 +218,11 @@ class ExecutionsController(rest.RestController):
         """Delete the specified Execution."""
         acl.enforce('executions:delete', context.ctx())
 
-        LOG.info('Delete execution [id=%s]' % id)
+        LOG.info("Delete execution [id=%s]", id)
 
         return db_api.delete_workflow_execution(id)
 
+    @rest_utils.wrap_wsme_controller_exception
     @wsme_pecan.wsexpose(resources.Executions, types.uuid, int,
                          types.uniquelist, types.list, types.uniquelist,
                          wtypes.text, types.uuid, wtypes.text, types.jsontype,

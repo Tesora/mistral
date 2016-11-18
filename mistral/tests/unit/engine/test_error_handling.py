@@ -16,6 +16,7 @@ from oslo_config import cfg
 
 from mistral.db.v2 import api as db_api
 from mistral import exceptions as exc
+from mistral.services import workbooks as wb_service
 from mistral.services import workflows as wf_service
 from mistral.tests.unit.engine import base
 from mistral.workflow import states
@@ -81,9 +82,10 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        task_execs = wf_ex.task_executions
+            task_execs = wf_ex.task_executions
 
         self.assertEqual(1, len(task_execs))
 
@@ -108,9 +110,10 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        task_execs = wf_ex.task_executions
+            task_execs = wf_ex.task_executions
 
         self.assertEqual(1, len(task_execs))
 
@@ -137,22 +140,23 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        # Now we need to make sure that task is in ERROR state but action
-        # is in SUCCESS because error occurred in 'publish' clause which
-        # must not affect action state.
-        task_execs = wf_ex.task_executions
+            # Now we need to make sure that task is in ERROR state but action
+            # is in SUCCESS because error occurred in 'publish' clause which
+            # must not affect action state.
+            task_execs = wf_ex.task_executions
 
-        self.assertEqual(1, len(task_execs))
+            self.assertEqual(1, len(task_execs))
 
-        task_ex = self._assert_single_item(
-            task_execs,
-            name='task1',
-            state=states.ERROR
-        )
+            task_ex = self._assert_single_item(
+                task_execs,
+                name='task1',
+                state=states.ERROR
+            )
 
-        action_execs = task_ex.executions
+            action_execs = task_ex.executions
 
         self.assertEqual(1, len(action_execs))
 
@@ -194,24 +198,26 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        # Now we need to make sure that task is in ERROR state but action
-        # is in SUCCESS because error occurred in 'publish' clause which
-        # must not affect action state.
-        task_execs = wf_ex.task_executions
+            # Now we need to make sure that task is in ERROR state but action
+            # is in SUCCESS because error occurred in 'publish' clause which
+            # must not affect action state.
+            task_execs = wf_ex.task_executions
 
-        # NOTE: task3 must not run because on-error handler triggers only
-        # on error outcome of an action (or workflow) associated with a task.
-        self.assertEqual(1, len(task_execs))
+            # NOTE: task3 must not run because on-error handler triggers
+            # only on error outcome of an action (or workflow) associated
+            # with a task.
+            self.assertEqual(1, len(task_execs))
 
-        task_ex = self._assert_single_item(
-            task_execs,
-            name='task1',
-            state=states.ERROR
-        )
+            task_ex = self._assert_single_item(
+                task_execs,
+                name='task1',
+                state=states.ERROR
+            )
 
-        action_execs = task_ex.executions
+            action_execs = task_ex.executions
 
         self.assertEqual(1, len(action_execs))
 
@@ -243,22 +249,23 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        # Now we need to make sure that task and action are in SUCCESS
-        # state because mistake at workflow level (output evaluation)
-        # must not affect them.
-        task_execs = wf_ex.task_executions
+            # Now we need to make sure that task and action are in SUCCESS
+            # state because mistake at workflow level (output evaluation)
+            # must not affect them.
+            task_execs = wf_ex.task_executions
 
-        self.assertEqual(1, len(task_execs))
+            self.assertEqual(1, len(task_execs))
 
-        task_ex = self._assert_single_item(
-            task_execs,
-            name='task1',
-            state=states.SUCCESS
-        )
+            task_ex = self._assert_single_item(
+                task_execs,
+                name='task1',
+                state=states.SUCCESS
+            )
 
-        action_execs = task_ex.executions
+            action_execs = task_ex.executions
 
         self.assertEqual(1, len(action_execs))
 
@@ -294,19 +301,20 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        task_execs = wf_ex.task_executions
+            task_execs = wf_ex.task_executions
 
-        self.assertEqual(1, len(task_execs))
+            self.assertEqual(1, len(task_execs))
 
-        task_ex = self._assert_single_item(
-            task_execs,
-            name='task1',
-            state=states.ERROR
-        )
+            task_ex = self._assert_single_item(
+                task_execs,
+                name='task1',
+                state=states.ERROR
+            )
 
-        action_execs = task_ex.executions
+            action_execs = task_ex.executions
 
         self.assertEqual(0, len(action_execs))
 
@@ -341,19 +349,20 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
 
         self.await_workflow_error(wf_ex.id)
 
-        wf_ex = db_api.get_workflow_execution(wf_ex.id)
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
 
-        task_execs = wf_ex.task_executions
+            task_execs = wf_ex.task_executions
 
-        self.assertEqual(1, len(task_execs))
+            self.assertEqual(1, len(task_execs))
 
-        task_ex = self._assert_single_item(
-            task_execs,
-            name='task1',
-            state=states.ERROR
-        )
+            task_ex = self._assert_single_item(
+                task_execs,
+                name='task1',
+                state=states.ERROR
+            )
 
-        action_execs = task_ex.executions
+            action_execs = task_ex.executions
 
         self.assertEqual(1, len(action_execs))
 
@@ -417,4 +426,199 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
         state_info = task_ex.state_info
 
         self.assertIsNotNone(state_info)
-        self.assertTrue(state_info.find('error') < state_info.find('data'))
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('data='))
+
+    def test_error_message_format_invalid_on_task_run(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.echo output={{ _.invalid_var }}
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+
+        state_info = task_ex.state_info
+
+        self.assertIsNotNone(state_info)
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('wf='))
+
+    def test_error_message_format_on_task_continue(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.echo output={{ _.invalid_var }}
+              wait-before: 1
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+
+        state_info = task_ex.state_info
+
+        self.assertIsNotNone(state_info)
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('wf='))
+
+    def test_error_message_format_on_action_complete(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.noop
+              publish:
+                my_var: <% invalid_yaql_function() %>
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+
+        state_info = task_ex.state_info
+
+        print(state_info)
+
+        self.assertIsNotNone(state_info)
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('wf='))
+
+    def test_error_message_format_complete_task(self):
+        wf_text = """
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.noop
+              wait-after: 1
+              on-success:
+                - task2: <% invalid_yaql_function() %>
+
+            task2:
+              action: std.noop
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+
+        state_info = task_ex.state_info
+
+        self.assertIsNotNone(state_info)
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('wf='))
+
+    def test_error_message_format_on_adhoc_action_error(self):
+        wb_text = """
+        version: '2.0'
+
+        name: wb
+
+        actions:
+          my_action:
+            input:
+              - output
+            output: <% invalid_yaql_function() %>
+            base: std.echo
+            base-input:
+              output: <% $.output %>
+
+        workflows:
+          wf:
+            tasks:
+              task1:
+                action: my_action output="test"
+        """
+
+        wb_service.create_workbook_v2(wb_text)
+
+        wf_ex = self.engine.start_workflow('wb.wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+
+        state_info = task_ex.state_info
+
+        self.assertIsNotNone(state_info)
+        self.assertTrue(state_info.find('error=') > 0)
+        self.assertTrue(state_info.find('error=') < state_info.find('action='))
+
+    def test_publish_bad_yaql(self):
+        wf_text = """---
+        version: '2.0'
+
+        wf:
+          type: direct
+
+          input:
+            - my_dict:
+              - id: 1
+                value: 11
+
+          tasks:
+            task1:
+              action: std.noop
+              publish:
+                problem_var: <% $.my_dict.where($.value = 13).id.first() %>
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+            action_ex = task_ex.action_executions[0]
+
+        self.assertEqual(states.SUCCESS, action_ex.state)
+        self.assertEqual(states.ERROR, task_ex.state)
+        self.assertIsNotNone(task_ex.state_info)
+        self.assertEqual(states.ERROR, wf_ex.state)
