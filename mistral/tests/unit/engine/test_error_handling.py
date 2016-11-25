@@ -622,3 +622,74 @@ class ErrorHandlingEngineTest(base.EngineTestCase):
         self.assertEqual(states.ERROR, task_ex.state)
         self.assertIsNotNone(task_ex.state_info)
         self.assertEqual(states.ERROR, wf_ex.state)
+
+    def test_publish_bad_jinja(self):
+        wf_text = """---
+        version: '2.0'
+
+        wf:
+          type: direct
+
+          input:
+            - my_dict:
+              - id: 1
+                value: 11
+
+          tasks:
+            task1:
+              action: std.noop
+              publish:
+                problem_var: '{{ (_.my_dict|some_invalid_filter).id }}'
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            task_ex = wf_ex.task_executions[0]
+            action_ex = task_ex.action_executions[0]
+
+        self.assertEqual(states.SUCCESS, action_ex.state)
+        self.assertEqual(states.ERROR, task_ex.state)
+        self.assertIsNotNone(task_ex.state_info)
+        self.assertEqual(states.ERROR, wf_ex.state)
+
+    def test_invalid_task_input(self):
+        wf_text = """---
+        version: '2.0'
+
+        wf:
+          tasks:
+            task1:
+              action: std.noop
+              on-success: task2
+
+            task2:
+              action: std.echo output=<% $.non_existing_function_AAA() %>
+        """
+
+        wf_service.create_workflows(wf_text)
+
+        wf_ex = self.engine.start_workflow('wf', {})
+
+        self.await_workflow_error(wf_ex.id)
+
+        with db_api.transaction():
+            wf_ex = db_api.get_workflow_execution(wf_ex.id)
+
+            tasks = wf_ex.task_executions
+
+        self.assertEqual(2, len(tasks))
+
+        self._assert_single_item(tasks, name='task1', state=states.SUCCESS)
+        t2 = self._assert_single_item(tasks, name='task2', state=states.ERROR)
+
+        self.assertIsNotNone(t2.state_info)
+        self.assertIn('Can not evaluate YAQL expression', t2.state_info)
+        self.assertIsNotNone(wf_ex.state_info)
+        self.assertIn('Can not evaluate YAQL expression', wf_ex.state_info)
