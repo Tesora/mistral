@@ -1,3 +1,12 @@
+========================
+Team and repository tags
+========================
+
+.. image:: http://governance.openstack.org/badges/mistral.svg
+    :target: http://governance.openstack.org/reference/tags/index.html
+
+.. Change things from this point on
+
 Mistral
 =======
 
@@ -102,9 +111,9 @@ an OpenStack environment.
 
     $ oslo-config-generator \
       --config-file tools/config/config-generator.mistral.conf \
-      --output-file etc/mistral.conf
+      --output-file /etc/mistral/mistral.conf
 
-#. Edit file ``etc/mistral.conf`` according to your setup. Pay attention to
+#. Edit file ``/etc/mistral/mistral.conf`` according to your setup. Pay attention to
    the following sections and options::
 
     [oslo_messaging_rabbit]
@@ -118,7 +127,7 @@ an OpenStack environment.
     connection = mysql://<DB_USER>:<DB_PASSWORD>@localhost:3306/mistral
 
 #. If you are not using OpenStack, add the following entry to the
-   ``/etc/mistral.conf`` file and **skip the following steps**::
+   ``/etc/mistral/mistral.conf`` file and **skip the following steps**::
 
     [pecan]
     auth_enable = False
@@ -258,7 +267,7 @@ Debugging
 ~~~~~~~~~
 
 To debug using a local engine and executor without dependencies such as
-RabbitMQ, make sure your ``etc/mistral.conf`` has the following settings::
+RabbitMQ, make sure your ``/etc/mistral/mistral.conf`` has the following settings::
 
   [DEFAULT]
   rpc_backend = fake
@@ -268,7 +277,7 @@ RabbitMQ, make sure your ``etc/mistral.conf`` has the following settings::
 
 and run the following command in *pdb*, *PyDev* or *PyCharm*::
 
-  mistral/cmd/launch.py --server all --config-file etc/mistral.conf --use-debugger
+  mistral/cmd/launch.py --server all --config-file /etc/mistral/mistral.conf --use-debugger
 
 .. note::
 
