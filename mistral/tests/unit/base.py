@@ -23,7 +23,6 @@ import mock
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslotest import base
-import six
 import testtools.matchers as ttm
 
 from mistral import context as auth_context
@@ -104,6 +103,10 @@ class BaseTest(base.BaseTestCase):
 
         self.addCleanup(spec_parser.clear_caches)
 
+    def register_action_class(self, name, cls, attributes=None, desc=None):
+        # Added for convenience (to avoid unnecessary imports).
+        register_action_class(name, cls, attributes, desc)
+
     def assertListEqual(self, l1, l2):
         if tuple(sys.version_info)[0:2] < (2, 7):
             # for python 2.6 compatibility
@@ -123,7 +126,7 @@ class BaseTest(base.BaseTestCase):
 
     def _assert_multiple_items(self, items, count, **props):
         def _matches(item, **props):
-            for prop_name, prop_val in six.iteritems(props):
+            for prop_name, prop_val in props.items():
                 v = item[prop_name] if isinstance(
                     item, dict) else getattr(item, prop_name)
 
@@ -156,7 +159,7 @@ class BaseTest(base.BaseTestCase):
         missing = []
         mismatched = []
 
-        for key, value in six.iteritems(expected):
+        for key, value in expected.items():
             if key not in actual:
                 missing.append(key)
             elif value != actual[key]:

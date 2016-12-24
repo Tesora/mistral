@@ -17,6 +17,7 @@ import copy
 import datetime
 import json
 import mock
+import testtools
 
 from mistral.db.v2 import api as db_api
 from mistral.db.v2.sqlalchemy import models
@@ -266,6 +267,18 @@ class TestTasksController(base.APITest):
         self.assertIn('faultstring', resp.json)
         self.assertIn('execution must be in ERROR', resp.json['faultstring'])
 
+    @testtools.skip("It tries to use engine which doesn't start for API tests")
+    @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
+    @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
+    def test_put_current_task_in_error(self):
+        params = copy.deepcopy(RERUN_TASK)
+        params['reset'] = True
+        params['env'] = '{"k1": "def"}'
+
+        resp = self.app.put_json('/v2/tasks/123', params=params)
+
+        self.assertEqual(200, resp.status_int)
+
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
     def test_put_invalid_state(self):
@@ -299,6 +312,20 @@ class TestTasksController(base.APITest):
         self.assertIn('faultstring', resp.json)
         self.assertIn('Only with-items task', resp.json['faultstring'])
 
+        @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
+        @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
+        def test_put_valid_state(self):
+            params = copy.deepcopy(RERUN_TASK)
+            params['state'] = states.RUNNING
+            params['reset'] = True
+
+            resp = self.app.put_json(
+                '/v2/tasks/123',
+                params=params
+            )
+
+            self.assertEqual(200, resp.status_int)
+
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
     def test_put_mismatch_task_name(self):
@@ -315,6 +342,21 @@ class TestTasksController(base.APITest):
         self.assertEqual(400, resp.status_int)
         self.assertIn('faultstring', resp.json)
         self.assertIn('Task name does not match', resp.json['faultstring'])
+
+    @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
+    @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
+    def test_put_match_task_name(self):
+        params = copy.deepcopy(RERUN_TASK)
+        params['name'] = 'task'
+        params['reset'] = True
+
+        resp = self.app.put_json(
+            '/v2/tasks/123',
+            params=params,
+            expect_errors=True
+        )
+
+        self.assertEqual(200, resp.status_int)
 
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     @mock.patch.object(db_api, 'get_task_execution', MOCK_ERROR_TASK)
