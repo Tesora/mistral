@@ -131,7 +131,7 @@ class BaseSpec(object):
 
     _definitions = {}
 
-    _version = '1.0'
+    _version = '2.0'
 
     @classmethod
     def get_schema(cls, includes=['meta', 'definitions']):
@@ -321,7 +321,7 @@ class BaseListSpec(BaseSpec):
 
         self.items = []
 
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             if k != 'version':
                 v['name'] = k
                 self._inject_version([k])
@@ -349,12 +349,12 @@ class BaseListSpec(BaseSpec):
 class BaseSpecList(object):
     item_class = None
 
-    _version = '1.0'
+    _version = '2.0'
 
     def __init__(self, data):
         self.items = {}
 
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             if k != 'version':
                 v['name'] = k
                 v['version'] = self._version

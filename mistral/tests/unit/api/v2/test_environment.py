@@ -35,7 +35,7 @@ VARIABLES = {
     'verbose': True,
     '__actions': {
         'std.sql': {
-            'conn': 'mysql://admin:secrete@<% env().host %>/<% env().db %>'
+            'conn': 'mysql://admin:secret@<% env().host %>/<% env().db %>'
         }
     }
 }
@@ -91,7 +91,7 @@ ENVIRONMENT_DB = db.Environment(
                                           DATETIME_FORMAT)
 )
 
-ENVIRONMENT_DB_DICT = {k: v for k, v in six.iteritems(ENVIRONMENT_DB)}
+ENVIRONMENT_DB_DICT = {k: v for k, v in ENVIRONMENT_DB.items()}
 
 UPDATED_VARIABLES = copy.deepcopy(VARIABLES)
 UPDATED_VARIABLES['host'] = '127.0.0.1'
