@@ -95,10 +95,10 @@
 
     -
       args:
-        definition: "/home/jenkins/.rally/extra/stress_test/very_big_wb.yaml"
+        definition: "/home/jenkins/.rally/extra/scenarios/complex_wf/complex_wf_wb.yaml"
         workflow_name: "top_level_workflow"
         params:
-          "/home/jenkins/.rally/extra/stress_test/stress_test_params.json"
+          "/home/jenkins/.rally/extra/scenarios/complex_wf/complex_wf_params.json"
         do_delete: true
       runner:
         type: "constant"
@@ -122,6 +122,38 @@
         type: "constant"
         times: 20
         concurrency: 5
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 1
+      sla:
+        failure_rate:
+          max: 0
+
+    -
+      args:
+        definition: "/home/jenkins/.rally/extra/scenarios/join/join_100_wb.yaml"
+        do_delete: true
+      runner:
+        type: "constant"
+        times: 20
+        concurrency: 5
+      context:
+        users:
+          tenants: 1
+          users_per_tenant: 1
+      sla:
+        failure_rate:
+          max: 0
+
+    -
+      args:
+        definition: "/home/jenkins/.rally/extra/scenarios/join/join_500_wb.yaml"
+        do_delete: true
+      runner:
+        type: "constant"
+        times: 10
+        concurrency: 1
       context:
         users:
           tenants: 1
