@@ -57,7 +57,8 @@ class OpenStackActionTest(base.BaseTestCase):
             auth_token=None,
             is_admin=False,
             # set year to 3016 in order for token to always be valid
-            expires_at='3016-07-13T18:34:22.000000Z'
+            expires_at='3016-07-13T18:34:22.000000Z',
+            insecure=False
         )
         ctx.set_ctx(test_ctx)
 
@@ -112,7 +113,8 @@ class OpenStackActionTest(base.BaseTestCase):
             auth_token=test_ctx.auth_token,
             tenant_id=test_ctx.project_id,
             region_name=mock_ks_endpoint_v2().region,
-            auth_url=mock_ks_endpoint_v2().url
+            auth_url=mock_ks_endpoint_v2().url,
+            insecure=test_ctx.insecure
         )
 
         self.assertTrue(mock_novaclient.Client().servers.get.called)
@@ -144,7 +146,8 @@ class OpenStackActionTest(base.BaseTestCase):
             auth_token=test_ctx.auth_token,
             tenant_id=test_ctx.project_id,
             region_name=mock_ks_endpoint_v2().region,
-            auth_url=mock_ks_endpoint_v2().url
+            auth_url=mock_ks_endpoint_v2().url,
+            insecure=test_ctx.insecure
         )
 
         self.assertTrue(mock_novaclient.Client().servers.get.called)
@@ -385,3 +388,15 @@ class OpenStackActionTest(base.BaseTestCase):
 
         self.assertTrue(mocked().alarm.get.called)
         mocked().alarm.get.assert_called_once_with(alarm_id="1234-abcd")
+
+    @mock.patch.object(actions.GnocchiAction, '_get_client')
+    def test_gnocchi_action(self, mocked):
+        method_name = "metric.get"
+        action_class = actions.GnocchiAction
+        action_class.client_method_name = method_name
+        params = {'metric_id': '1234-abcd'}
+        action = action_class(**params)
+        action.run()
+
+        self.assertTrue(mocked().metric.get.called)
+        mocked().metric.get.assert_called_once_with(metric_id="1234-abcd")
