@@ -54,8 +54,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'Mistral'
-copyright = u'2014, Mistral Contributors'
+project = u'Workflow Service API Reference'
+copyright = u'2017, Mistral Contributors'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -104,7 +104,7 @@ html_last_updated_fmt = subprocess.Popen(
 
 # The name for this set of Sphinx documents. If None, it defaults to
 # "<project> v<release> documentation".
-html_title = 'Mistral'
+html_title = 'Mistral API Reference'
 
 # Custom sidebar templates, maps document names to template names.
 html_sidebars = {
