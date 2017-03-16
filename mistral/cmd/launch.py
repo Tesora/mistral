@@ -25,8 +25,8 @@ eventlet.monkey_patch(
     time=True)
 
 import os
+import six
 import time
-
 
 # If ../mistral/__init__.py exists, add ../ to Python search path, so that
 # it will override what happens to be installed in /usr/(local/)lib/python...
@@ -40,7 +40,15 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging as messaging
 
-from mistral.api import service as mistral_service
+if six.PY3 is True:
+    import socketserver
+else:
+    import SocketServer as socketserver
+
+from wsgiref import simple_server
+from wsgiref.simple_server import WSGIServer
+
+from mistral.api import app
 from mistral import config
 from mistral import context as ctx
 from mistral.db.v2 import api as db_api
@@ -132,11 +140,32 @@ def launch_engine(transport):
         server.wait()
 
 
-def launch_api():
-    launcher = mistral_service.process_launcher()
-    server = mistral_service.WSGIService('mistral_api')
-    launcher.launch_service(server, workers=server.workers)
-    launcher.wait()
+class ThreadingWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
+    pass
+
+
+def get_rpc_server_function():
+    if CONF.use_mistral_rpc:
+        return rpc.get_rpc_server
+    else:
+        return messaging.get_rpc_server
+
+
+def launch_api(transport):
+    host = cfg.CONF.api.host
+    port = cfg.CONF.api.port
+
+    server = simple_server.make_server(
+        host,
+        port,
+        app.setup_app(),
+        ThreadingWSGIServer
+    )
+
+    LOG.info("Mistral API is serving on http://%s:%s (PID=%s)" %
+             (host, port, os.getpid()))
+
+    server.serve_forever()
 
 
 def launch_any(transport, options):
