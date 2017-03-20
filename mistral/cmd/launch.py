@@ -48,7 +48,6 @@ from mistral.engine import default_executor as def_executor
 from mistral.engine.rpc import rpc
 from mistral.services import expiration_policy
 from mistral.services import scheduler
-from mistral.utils import profiler
 from mistral.utils import rpc_utils
 from mistral import version
 
@@ -59,8 +58,6 @@ LOG = logging.getLogger(__name__)
 
 
 def launch_executor():
-    profiler.setup('mistral-executor', cfg.CONF.executor.host)
-
     executor_v2 = def_executor.DefaultExecutor(rpc.get_engine_client())
     executor_endpoint = rpc.ExecutorServer(executor_v2)
 
@@ -80,8 +77,6 @@ def launch_executor():
 
 
 def launch_engine():
-    profiler.setup('mistral-engine', cfg.CONF.engine.host)
-
     engine_v2 = def_eng.DefaultEngine(rpc.get_engine_client())
 
     engine_endpoint = rpc.EngineServer(engine_v2)
@@ -109,8 +104,6 @@ def launch_engine():
 
 
 def launch_event_engine():
-    profiler.setup('mistral-event-engine', cfg.CONF.event_engine.host)
-
     event_eng = event_engine.EventEngine(rpc.get_engine_client())
     endpoint = rpc.EventEngineServer(event_eng)
 
