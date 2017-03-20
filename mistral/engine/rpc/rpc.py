@@ -502,22 +502,9 @@ class ExecutorClient(base.Executor):
 
         :param rpc_conf_dict: Dict containing RPC configuration.
         """
-<<<<<<< HEAD
-        serializer = auth_ctx.RpcContextSerializer(
-            auth_ctx.JsonPayloadSerializer()
-        )
-
-        self.topic = cfg.CONF.executor.topic
-        self._client = messaging.RPCClient(
-            transport,
-            messaging.Target(),
-            serializer=serializer
-        )
-=======
 
         self.topic = cfg.CONF.executor.topic
         self._client = get_rpc_client_driver()(rpc_conf_dict)
->>>>>>> 95e6b34... Integrating new RPC layer with Mistral
 
     def run_action(self, action_ex_id, action_class_str, attributes,
                    action_params, target=None, async=True):

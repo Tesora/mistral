@@ -122,12 +122,8 @@ MOCK_NOT_FOUND = mock.MagicMock(side_effect=exc.NotFoundException())
 MOCK_ACTION_EXC = mock.MagicMock(side_effect=exc.ActionException())
 
 
-<<<<<<< HEAD
-class TestExecutionsController(base.FunctionalTest):
-=======
 @mock.patch.object(rpc, '_IMPL_CLIENT', mock.Mock())
 class TestExecutionsController(base.APITest):
->>>>>>> 95e6b34... Integrating new RPC layer with Mistral
     @mock.patch.object(db_api, 'get_workflow_execution', MOCK_WF_EX)
     def test_get(self):
         resp = self.app.get('/v2/executions/123')
