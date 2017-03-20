@@ -23,6 +23,7 @@ import itertools
 from oslo_config import cfg
 from oslo_log import log
 from oslo_middleware import cors
+from osprofiler import opts as profiler
 
 from mistral import version
 
