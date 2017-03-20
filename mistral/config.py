@@ -198,6 +198,7 @@ EXECUTOR_GROUP = 'executor'
 PECAN_GROUP = 'pecan'
 COORDINATION_GROUP = 'coordination'
 EXECUTION_EXPIRATION_POLICY_GROUP = 'execution_expiration_policy'
+PROFILER_GROUP = profiler.list_opts()[0][0]
 
 CONF.register_opts(api_opts, group=API_GROUP)
 CONF.register_opts(engine_opts, group=ENGINE_GROUP)
@@ -240,6 +241,7 @@ def list_opts():
         (PECAN_GROUP, pecan_opts),
         (COORDINATION_GROUP, coordination_opts),
         (EXECUTION_EXPIRATION_POLICY_GROUP, execution_expiration_policy_opts),
+        (PROFILER_GROUP, profiler_opts),
         (None, itertools.chain(
             CLI_OPTS,
             [
